@@ -1,0 +1,114 @@
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const config = require('./config');
+const _ = require('underscore');
+const axios = require('axios');
+
+const apiRouter = require('./routes/api');
+
+const app = express();
+
+app.set('appName', 'Notifier');
+
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'hbs');
+
+const passport = require('passport');
+const passportStrategies = require('./passport-strategies');
+
+app.use(logger('combined', {
+  // log only on errors
+  skip: function (req, res) {
+    return res.statusCode < 400 || res.statusCode === 429
+  }
+}));
+app.use(express.json());
+app.use(express.urlencoded({extended: false}));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.use('/api', apiRouter);
+
+// catch 404 and forward to error handler
+app.use(function (req, res, next) {
+  next(createError(404));
+});
+
+// error handler
+app.use(function (err, req, res, next) {
+  // set locals, only providing error in development
+  res.locals.message = err.message;
+  res.locals.error = req.app.get('env') === 'development' ? err : {};
+
+  //res.json({status: err.status || 500, message: err.message});
+  res.status(err.status || 500).json({error: err.message});
+});
+
+app.doInitialConfig = function () {
+  return new Promise((resolve, reject) => {
+    resolve();
+  });
+};
+
+lazyPushConfig = _.debounce(function (configSyncDest) {
+
+  _.each(configSyncDest, function (syncDestination) {
+    let restapiUrl = syncDestination.restapiUrl;
+    let authorizationBearer = syncDestination.authorizationBearer;
+    let acceptSelfSignedCertificate = syncDestination.acceptSelfSignedCertificate;
+
+    if (restapiUrl && authorizationBearer) {
+      console.log(`push configuration to ${restapiUrl}`);
+      let reqOpts = {
+        url: restapiUrl,
+        auth: {bearer: authorizationBearer},
+        method: 'POST',
+        json: {groups: config.get('groups'), recipients: config.get('recipients')}
+      };
+
+      if (acceptSelfSignedCertificate) {
+        console.log("Accepting self signed certificate for " + restapiUrl);
+        reqOpts.agentOptions = {
+          insecure: true,
+          rejectUnauthorized: false
+        };
+      }
+
+      const agent = new https.Agent({
+        rejectUnauthorized: false
+      });
+
+      axios.post(restapiUrl, {groups: config.get('groups'), recipients: config.get('recipients')},
+        {headers: {auth: {bearer: authorizationBearer}}, httpsAgent: agent}).then((httpResponse) => {
+        if (httpResponse.statusCode === 200) {
+          console.log(`config push to ${restapiUrl} was successful`);
+        } else {
+          console.log(`config push to ${restapiUrl} returned status ${httpResponse.statusCode}: ${httpResponse.statusMessage}`);
+        }
+      }).catch((error) => {
+        console.log('ERROR while sending request for config push:', err);
+      });
+
+    } else {
+      console.log("Skipped config sync destination, because not fully configured");
+    }
+  }, this);
+
+}, 70000);
+
+app.pushConfigToBackupServer = function () {
+  let configSyncDest = config.get("configSyncDestinations");
+  if (configSyncDest && configSyncDest.length > 0) {
+    lazyPushConfig(configSyncDest);
+  } else {
+    console.log("Not pushing configuration, because configSyncDestionations are not fully specified in configuration");
+  }
+};
+
+passportStrategies.init(passport);
+
+module.exports = app;
