@@ -15,6 +15,6 @@ RUN echo $'{\n\
 }' > /app/settings.json
 
 RUN yarn install --production
-CMD ["node", "./bin/www"]
+CMD ["node", "./server.js"]
 EXPOSE $PORT_HTTP
 EXPOSE $PORT_HTTPS
