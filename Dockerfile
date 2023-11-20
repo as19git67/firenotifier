@@ -8,8 +8,8 @@ ENV PORT_HTTP=5002
 ENV PORT_HTTPS=5052
 
 RUN echo $'{\n\
-  \"httpPort\": \"$PORT_HTTP\",\n\
-  \"httpsPort\": \"$PORT_HTTPS\",\n\
+  \"httpPort\": "$PORT_HTTP",\n\
+  \"httpsPort\": "$PORT_HTTPS",\n\
   \"bearerTokens\": {\n\
    }\n\
 }' > /app/settings.json
