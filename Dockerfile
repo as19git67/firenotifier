@@ -7,12 +7,14 @@ COPY . .
 ENV PORT_HTTP=5002
 ENV PORT_HTTPS=5052
 
-RUN echo '{\n\
-  \"httpPort\": "$PORT_HTTP",\n\
-  \"httpsPort\": "$PORT_HTTPS",\n\
-  \"bearerTokens\": {\n\
-   }\n\
-}' > /app/settings.json
+#RUN echo $'{\n\
+#  \"httpPort\": "$PORT_HTTP",\n\
+#  \"httpsPort\": "$PORT_HTTPS",\n\
+#  \"bearerTokens\": {\n\
+#   }\n\
+#}' > /app/settings.json
+
+RUN echo $PORT_HTTP > /app/settings.json
 
 RUN yarn install --production
 CMD ["node", "./server.js"]
