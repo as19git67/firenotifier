@@ -4,16 +4,12 @@ FROM node:18-alpine
 WORKDIR /app
 COPY . .
 
-ENV PORT_HTTP=5002
-ENV PORT_HTTPS=5052
-ENV BEARER_TOKENS_JSON="{}"
-
-#RUN echo $'{\n\
-#  \"httpPort\": "$PORT_HTTP",\n\
-#  \"httpsPort\": "$PORT_HTTPS",\n\
-#  \"bearerTokens\": {\n\
-#   }\n\
-#}' > /app/settings.json
+ARG ARG_PORT_HTTP=5002
+ENV PORT_HTTP=${ARG_PORT_HTTP}
+ARG ARG_PORT_HTTPS=5052
+ENV PORT_HTTPS=${ARG_PORT_HTTPS}
+ARG ARG_BEARER_TOKENS_JSON="{}"
+ENV BEARER_TOKENS_JSON=${ARG_BEARER_TOKENS_JSON}
 
 RUN echo "{"                                      >  /app/settings.json
 RUN echo "  \"httpPort\": $PORT_HTTP,"              >> /app/settings.json
