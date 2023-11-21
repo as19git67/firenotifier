@@ -13,7 +13,7 @@ ENV BEARER_TOKENS_JSON=${ARG_BEARER_TOKENS_JSON}
 
 RUN yarn install --production
 
-CMD ["bash", "./start.sh"]
+CMD ["/bin/sh", "./start.sh"]
 
 EXPOSE $PORT_HTTP
 EXPOSE $PORT_HTTPS
