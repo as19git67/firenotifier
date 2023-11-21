@@ -13,14 +13,7 @@ ENV BEARER_TOKENS_JSON=${ARG_BEARER_TOKENS_JSON}
 
 RUN yarn install --production
 
-
-CMD echo "{"                                        >  /app/settings.json
-CMD echo "  \"httpPort\": $PORT_HTTP,"              >> /app/settings.json
-CMD echo "  \"httpsPort\": $PORT_HTTPS,"            >> /app/settings.json
-CMD echo "  \"bearerTokens\": $BEARER_TOKENS_JSON"  >> /app/settings.json
-CMD echo "}"                                        >> /app/settings.json
-
-CMD ["node", "./server.js"]
+CMD ["bash", "./start.sh"]
 
 EXPOSE $PORT_HTTP
 EXPOSE $PORT_HTTPS
