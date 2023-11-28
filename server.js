@@ -2,6 +2,7 @@
 
 const app = require('./app');
 const config = require('./config');
+const Data = require('./data');
 const debug = require('debug')('firenotifier:server');
 const http = require('http');
 const https = require('https');
@@ -11,12 +12,19 @@ const path = require('path');
 let server;
 let port;
 
-app.doInitialConfig().then(function () {
+app.doInitialConfig().then(async function () {
   let testMode = !!config.get('TEST');
 
   if (testMode) {
     console.log("TEST MODE activated");
   }
+
+  // data file
+  const data = new Data();
+  const groups = await data.getGroups();
+  const recipients = await data.getRecipients();
+
+  console.log(`Datafile has ${groups.length} groups and ${recipients.length} recipients`);
 
   port = config.get('httpsPort');
 
