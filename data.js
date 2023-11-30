@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const jf = require('jsonfile');
 const config = require('./config');
+const _ = require('underscore');
 
 let _dataFileLocked = false;
 
@@ -84,6 +85,21 @@ module.exports = class Data {
       return data.groups;
     } finally {
       console.log(`getGroups: unlocking - finally`);
+      this.#unlock();
+    }
+  }
+
+  async setGroups(groups) {
+    try {
+      console.log(`setGroups: _initFile`);
+      const data = await this.#initFile();
+      data.groups = _.map(groups, (group) => {
+        return {id: group.id, description: group.description};
+      });
+      await jf.writeFile(this.#dataFile, data, {spaces: 2});
+      return data.groups;
+    } finally {
+      console.log(`setGroups: unlocking - finally`);
       this.#unlock();
     }
   }

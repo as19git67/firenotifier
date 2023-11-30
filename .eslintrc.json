@@ -1,0 +1,10 @@
+{
+  "extends": "airbnb-base",
+  "root": true,
+  "parserOptions": {
+    "ecmaVersion": 13
+  },
+  "rules": {
+    "no-restricted-syntax": ["error", "ForInStatement", "LabeledStatement", "WithStatement"]
+  }
+}
