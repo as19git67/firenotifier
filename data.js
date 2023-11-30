@@ -1,8 +1,8 @@
-const fs = require('fs');
-const path = require('path');
-const jf = require('jsonfile');
-const config = require('./config');
-const _ = require('underscore');
+import fs from 'fs';
+import path from 'path';
+import jf from 'jsonfile';
+import config from './config.js';
+import _ from 'underscore';
 
 let _dataFileLocked = false;
 
