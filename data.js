@@ -10,7 +10,7 @@ function _unlockDataFile() {
   _dataFileLocked = false;
 }
 
-module.exports = class Data {
+export default class Data {
   #dataFile;
   #locked;
 
