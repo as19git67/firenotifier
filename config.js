@@ -1,7 +1,7 @@
-const nconf = require('nconf');
-const fs = require('fs');
-const path = require('path');
-const _ = require('underscore');
+import nconf from 'nconf';
+import fs from 'fs';
+import path from 'path';
+import _ from 'underscore';
 
 const configFilename = 'settings.json';
 let configFilepath = path.join(__dirname, configFilename);
