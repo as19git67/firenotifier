@@ -4,7 +4,7 @@
   "description": "A service with a REST api to send a message to varous destinations",
   "scripts": {
     "start": "node ./server.js",
-    "test": "mocha test"
+    "test": "mocha tests"
   },
   "repository": {
     "type": "git",
