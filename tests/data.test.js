@@ -5,6 +5,9 @@ describe('Testing the Datafile function', () => {
 
   it('Initializing Data', async () => {
     const data = new Data();
-    await data.initialize();
+    const groups = await data.getGroups();
+    const recipients = await data.getRecipients();
+    
+    expect(recipients.length).to.Be(0);
   });
 });
