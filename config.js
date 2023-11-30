@@ -113,4 +113,4 @@ nconf.defaults({
   ]
 });
 
-module.exports = nconf;
+export default nconf;
