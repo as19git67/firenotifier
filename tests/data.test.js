@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {Data} from 'data';
+import {Data} from '../data';
 
 describe('Testing the Datafile function', () => {
 
