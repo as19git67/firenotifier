@@ -2,7 +2,10 @@ import nconf from 'nconf';
 import fs from 'fs';
 import path from 'path';
 import _ from 'underscore';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const configFilename = 'settings.json';
 let configFilepath = path.join(__dirname, configFilename);
 nconf.file({file: configFilepath});
