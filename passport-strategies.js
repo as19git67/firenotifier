@@ -1,24 +1,32 @@
-const _ = require('underscore');
-const BearerStrategy = require('passport-http-bearer').Strategy;
-const config = require('./config');
+import _ from 'underscore';
+import BearerStrategy from 'passport-http-bearer';
+import config from './config.js';
 
-module.exports.init = function (passport, callback) {
+export default function (passport, callback) {
 
   passport.use(new BearerStrategy(function (accessToken, done) {
-      // console.log('Bearer Strategy with token ' + accessToken);
-      // console.log('BEARER Strategy');
+        // console.log('Bearer Strategy with token ' + accessToken);
+        // console.log('BEARER Strategy');
 
-      const bearers = config.get('bearerTokens');
-      const username = bearers[accessToken];
-      if (username) {
-        const info = {scope: '*'};
-        const user = {name: username};
-        done(null, user, info);
-      } else {
-        return done({message: 'invalid bearer token', status: 401});
+        let bearers = config.get('bearerTokens');
+        if (_.isString(bearers)) {
+          bearers = JSON.parse(bearers);
+        }
+        for (const bearer of Object.keys(bearers)) {
+          const tokenName = bearers[bearer];
+          console.log(`Have token ${tokenName} for bearer strategy`)
+        }
+
+        const username = bearers[accessToken];
+        if (username) {
+          const info = {scope: '*'};
+          const user = {name: username};
+          done(null, user, info);
+        } else {
+          return done({message: 'invalid bearer token', status: 401});
+        }
+
       }
-
-    }
   ));
 
   if (_.isFunction(callback)) {
@@ -26,7 +34,8 @@ module.exports.init = function (passport, callback) {
   }
 };
 
-module.exports.ensureAuthenticatedForApi = function (req, res, next) {
+// todo: check if unused
+export const ensureAuthenticatedForApi = function (req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }

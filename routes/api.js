@@ -1,14 +1,16 @@
-const express = require('express');
-const passport = require('passport');
+import express from 'express';
+import passport from 'passport';
+import _ from 'underscore';
+import nodemailer from 'nodemailer';
+import moment from 'moment';
+import Handlebars from 'handlebars';
+import util from 'util';
+import formidable from 'formidable';
+import config from '../config.js';
+import {smsSendSMS, smsGetStatus} from '../textanywhere.js';
+import Data from "../data.js";
+
 const router = express.Router();
-const _ = require('underscore');
-const config = require('../config');
-const sms = require('../textanywhere');
-const nodemailer = require('nodemailer');
-const moment = require('moment');
-const Handlebars = require('handlebars');
-const util = require('util');
-const formidable = require('formidable');
 
 moment.locale('de');
 
@@ -54,42 +56,45 @@ let notificationHistory = {};
 // test post with curl:
 // curl --insecure -F groupId=21204 -H "Authorization:Bearer 123abc"  https://localhost:5052/api/send
 router.post('/send', passport.authenticate('bearer', {session: false}), function (req, res, next) {
-  let form = new formidable.IncomingForm();
+  const form = formidable();
   const sms_sender_nr = config.get('sms_sender_nr');
 
-  form.parse(req, function (err, fields, files) {
-    if (!fields) {
-      fields = {};
-    }
+  try {
+    const data = new Data();
+    let all = data.getRecipients();
 
-    // convert arrays with one element to element
-    _.each(_.keys(fields), function (key) {
-      let value = fields[key];
-      if (_.isArray(value) && value.length === 1) {
-        fields[key] = value[0];
-      }
-    });
-
-    let groupId = fields.groupId;
-    if (groupId) {
-
-      if (_isSameGroupTooEarly(groupId)) {
-        res.status(429).json({message: 'ignoring duplicate for groupID ' + groupId});
-        return;
+    form.parse(req, function (err, fields, files) {
+      if (!fields) {
+        fields = {};
       }
 
-      let all = config.get('recipients');
-      let recipientsByAddress = {sms: {}, smsUseSmsSenderNumber: {}, email: {}};
-      _.each(all, function (recipient) {
-        let groups = recipient.groups;
-        // console.log("groups of recipient: ", groups);
-        let recipientGroupsToNotify = _.where(groups, {id: groupId});
-        let wildcardGroupsToNotify = _.where(groups, {id: '*'});
-        recipientGroupsToNotify = recipientGroupsToNotify.concat(wildcardGroupsToNotify);
+      // convert arrays with one element to element
+      _.each(_.keys(fields), function (key) {
+        let value = fields[key];
+        if (_.isArray(value) && value.length === 1) {
+          fields[key] = value[0];
+        }
+      });
 
-        _.each(recipientGroupsToNotify, function (recipientGroupToNotify) {
-          // console.log("Recipient " + recipient.lastname + ' is in group ' + groupId);
-          switch (recipientGroupToNotify.type) {
+      let groupId = fields.groupId;
+      if (groupId) {
+
+        if (_isSameGroupTooEarly(groupId)) {
+          res.status(429).json({message: 'ignoring duplicate for groupID ' + groupId});
+          return;
+        }
+
+        let recipientsByAddress = {sms: {}, smsUseSmsSenderNumber: {}, email: {}};
+        _.each(all, function (recipient) {
+          let groups = recipient.groups;
+          // console.log("groups of recipient: ", groups);
+          let recipientGroupsToNotify = _.where(groups, {id: groupId});
+          let wildcardGroupsToNotify = _.where(groups, {id: '*'});
+          recipientGroupsToNotify = recipientGroupsToNotify.concat(wildcardGroupsToNotify);
+
+          _.each(recipientGroupsToNotify, function (recipientGroupToNotify) {
+            // console.log("Recipient " + recipient.lastname + ' is in group ' + groupId);
+            switch (recipientGroupToNotify.type) {
             case 'email':
               if (recipient.email) {
                 recipientsByAddress.email[recipient.email] = {
@@ -113,68 +118,80 @@ router.post('/send', passport.authenticate('bearer', {session: false}), function
                 }
               }
               break;
-          }
+            }
+          }, this);
         }, this);
-      }, this);
-      // let recipients = {sms: Object.keys(recipientsByAddress.sms), email: Object.keys(recipientsByAddress.email)};
+        // let recipients = {sms: Object.keys(recipientsByAddress.sms), email: Object.keys(recipientsByAddress.email)};
 
-      console.log(`${req.user.name} requested to notify group ${groupId}`);
-      console.log(`Recipients: ${JSON.stringify(recipientsByAddress)}`);
+        console.log(`${req.user.name} requested to notify group ${groupId}`);
+        console.log(`Recipients: ${JSON.stringify(recipientsByAddress)}`);
 
-      let promises = [];
+        let promises = [];
 
-      if (Object.keys(recipientsByAddress.sms).length > 0 || Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
-        let textSMS = _generateTextForSMS(fields);
-        // send in the first batch sms where sender is the group name
-        if (Object.keys(recipientsByAddress.sms).length > 0) {
-          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.sms, textSMS.sender));
+        if (Object.keys(recipientsByAddress.sms).length > 0 ||
+            Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
+          let textSMS = _generateTextForSMS(fields);
+          // send in the first batch sms where sender is the group name
+          if (Object.keys(recipientsByAddress.sms).length > 0) {
+            promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.sms, textSMS.sender));
+          }
+          // now send in a second batch to all recipients where sender should be a number
+          if (Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
+            promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.smsUseSmsSenderNumber, sms_sender_nr));
+          }
         }
-        // now send in a second batch to all recipients where sender should be a number
-        if (Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
-          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.smsUseSmsSenderNumber, sms_sender_nr));
+
+        if (Object.keys(recipientsByAddress.email).length > 0) {
+          let textEmail = _generateTextForEmail(fields);
+          promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email)));
         }
-      }
 
-      if (Object.keys(recipientsByAddress.email).length > 0) {
-        let textEmail = _generateTextForEmail(fields);
-        promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email)));
+        Promise.all(promises).then(values => {
+          res.json({ok: true});
+        }).catch(reason => {
+          console.log("Sending notifications failed: " + reason.message ? reason.message : 'unknown');
+          res.status(500).json({ok: false, error: reason.message ? reason.message : 'Sending notifications failed'});
+        });
+      } else {
+        console.log("Ignoring request, because groupId is missing in request body.");
+        res.status(403).json({error: 'groupId in request body missing'});
       }
-
-      Promise.all(promises).then(values => {
-        res.json({ok: true});
-      }).catch(reason => {
-        console.log("Sending notifications failed: " + reason.message ? reason.message : 'unknown');
-        res.status(500).json({ok: false, error: reason.message ? reason.message : 'Sending notifications failed'});
-      });
-    } else {
-      console.log("Ignoring request, because groupId is missing in request body.");
-      res.status(403).json({error: 'groupId in request body missing'});
-    }
-  });
+    });
+  } catch(ex) {
+    console.log(ex);
+    res.status(500).json({ok: false, error: ex.message ? ex.message : 'Sending notifications failed'});
+  }
 });
 
 // REST call to set the groups and recipients part of the configuration
 router.post('/groups', passport.authenticate('bearer', {session: false}), function (req, res, next) {
     if (req.body) {
-      let configChanged = false;
-      if (req.body.groups && _.isArray(req.body.groups)) {
-        configChanged = true;
-        config.set('groups', req.body.groups)
-      }
-      if (req.body.recipients && _.isArray(req.body.recipients)) {
-        configChanged = true;
-        config.set('recipients', req.body.recipients)
-      }
-      if (configChanged) {
-        config.save(function (err) {
-          if (err) {
-            console.log('Writing configuration file failed: ', err);
-            res.status(500).end();
-          } else {
-            console.log("Updated configuration file saved");
-            res.end();
-          }
-        });
+      try {
+        const data = new Data();
+
+        let configChanged = false;
+        if (req.body.groups && _.isArray(req.body.groups)) {
+          configChanged = true;
+          data.setGroups(req.body.groups);
+        }
+        if (req.body.recipients && _.isArray(req.body.recipients)) {
+          configChanged = true;
+          config.set('recipients', req.body.recipients)
+        }
+        if (configChanged) {
+          config.save(function (err) {
+            if (err) {
+              console.log('Writing configuration file failed: ', err);
+              res.status(500).end();
+            } else {
+              console.log("Updated configuration file saved");
+              res.end();
+            }
+          });
+        }
+      } catch(ex) {
+        console.log(ex);
+        res.status(500).json({ok: false, error: ex.message ? ex.message : 'Set groups/recipients failed'});
       }
     } else {
       console.log('Bad request: data missing in request body');
@@ -477,7 +494,7 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
       resolve(recipients);
     } else {
 
-      sms.sendSMS(recipients, textSMS.text, clientId, clientSecret, sender, validityHours).then(results => {
+      smsSendSMS(recipients, textSMS.text, clientId, clientSecret, sender, validityHours).then(results => {
         let failed = _.reject(results.Destinations[0].Destination, function (destination) {
           return destination.Code[0] === '1' || destination.Code[0] === 1;
         });
@@ -505,7 +522,7 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
 
         setTimeout(function () {
           console.log("Retrieve status for sent SMS...");
-          sms.getStatus(clientId, clientSecret, results.clientMessageReference).then(results => {
+          smsGetStatus(clientId, clientSecret, results.clientMessageReference).then(results => {
 
             // todo fix prev failed to include only really failed entries
             console.log("previously collected failed recipients: ", failedRecipients);
@@ -697,4 +714,4 @@ function _sendSmsStatusEmail(groupId, statuses) {
   });
 }
 
-module.exports = router;
+export default router;

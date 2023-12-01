@@ -1,13 +1,17 @@
-const createError = require('http-errors');
-const express = require('express');
-const path = require('path');
-const cookieParser = require('cookie-parser');
-const logger = require('morgan');
-const config = require('./config');
-const _ = require('underscore');
-const axios = require('axios');
+import createError from 'http-errors';
+import express from 'express';
+import path from 'path';
+import cookieParser from 'cookie-parser';
+import logger from 'morgan';
+import _ from 'underscore';
+import axios from 'axios';
+import { fileURLToPath } from 'url';
 
-const apiRouter = require('./routes/api');
+import config from './config.js';
+import apiRouter from './routes/api.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -17,8 +21,8 @@ app.set('appName', 'Notifier');
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'hbs');
 
-const passport = require('passport');
-const passportStrategies = require('./passport-strategies');
+import passport from 'passport';
+import passportStrategies from './passport-strategies.js';
 
 app.use(logger('combined', {
   // log only on errors
@@ -54,7 +58,7 @@ app.doInitialConfig = function () {
   });
 };
 
-lazyPushConfig = _.debounce(function (configSyncDest) {
+const lazyPushConfig = _.debounce(function (configSyncDest) {
 
   _.each(configSyncDest, function (syncDestination) {
     let restapiUrl = syncDestination.restapiUrl;
@@ -109,6 +113,6 @@ app.pushConfigToBackupServer = function () {
   }
 };
 
-passportStrategies.init(passport);
+passportStrategies(passport);
 
-module.exports = app;
+export default app;

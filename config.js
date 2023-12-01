@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const configFilename = 'settings.json';
 let configFilepath = path.join(__dirname, configFilename);
-nconf.file({file: configFilepath});
+nconf.env().file({file: configFilepath});
 nconf.listenForChange = function (callback) {
   if (_.isFunction(callback)) {
     console.log("Callback installed to listen for changes");

@@ -1,8 +1,6 @@
-const https = require('https');
-const xml2js = require('xml2js');
-const _ = require('underscore');
-const {v1: uuidv1} = require('uuid');
-
+import https from 'https';
+import xml2js from 'xml2js';
+import {v1 as uuidv1} from 'uuid';
 
 const CharacterSetIDs = {
   Unicode: 1,
@@ -19,8 +17,9 @@ const ReplyMethodIds = {
   ShortCode_NoReply: 7
 };
 
+
 // no sender phone number needed, because senderName is used and recipients can't reply to the message anyway
-module.exports.sendSMS = function sendSMS(recipientList, message, clientId, clientSecret, senderName, validityHours) {
+export const smsSendSMS = function sendSMS(recipientList, message, clientId, clientSecret, senderName, validityHours) {
   return new Promise((resolve, reject) => {
 
     const haveSenderNumber = senderName.substring(0, 4) === '+491';
@@ -149,7 +148,7 @@ function _sendRequest(options, data) {
   });
 }
 
-module.exports.getStatus = function getStatus(clientId, clientSecret, clientMessageReference) {
+export const smsGetStatus = function getStatus(clientId, clientSecret, clientMessageReference) {
   return new Promise((resolve, reject) => {
     let options = {
       host: 'www.textapp.net',

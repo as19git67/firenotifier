@@ -1,8 +1,10 @@
-import fs from 'fs';
 import path from 'path';
 import jf from 'jsonfile';
 import config from './config.js';
 import _ from 'underscore';
+import debug from 'debug';
+
+const debugLogger = debug('firenotifier:data');
 
 let _dataFileLocked = false;
 
@@ -18,21 +20,21 @@ export default class Data {
     this.#locked = false;
 
     const dataDirectory = config.get('dataDirectory');
-    console.log(`Data: dataDirectory is ${dataDirectory}`);
+    debugLogger(`Data: dataDirectory is ${dataDirectory}`);
     this.#dataFile = path.join(dataDirectory, 'data.json');
-    console.log(`Data: dataFile is ${this.#dataFile}`);
+    debugLogger(`Data: dataFile is ${this.#dataFile}`);
   }
 
   // the lock function must be a recursive timer
   async #lock() {
     // check if already locked by this instance
     if (this.#locked) {
-      // console.log('Skip locking with #lock, because already locked by this instance');
+      debugLogger('Skip locking with #lock, because already locked by this instance');
       return;
     }
     if (_dataFileLocked) {
       // datafile locked by other instance => wait until free
-      console.log(`${this.#dataFile} is locked. Trying again later...`);
+      debugLogger(`${this.#dataFile} is locked. Trying again later...`);
       await new Promise((resolve, reject) => {
         const timer = setInterval(async () => {
           if (!_dataFileLocked) {
@@ -59,7 +61,7 @@ export default class Data {
 
   async #initFile(noLock) {
     if (noLock) {
-      console.log(`#initFile: not locking`);
+      debugLogger(`#initFile: not locking`);
     } else {
       await this.#lock();
     }
@@ -80,44 +82,70 @@ export default class Data {
 
   async getGroups() {
     try {
-      console.log(`getGroups: _initFile`);
+      debugLogger(`getGroups: _initFile`);
       const data = await this.#initFile();
       return data.groups;
     } finally {
-      console.log(`getGroups: unlocking - finally`);
+      debugLogger(`getGroups: unlocking - finally`);
       this.#unlock();
     }
   }
 
   async setGroups(groups) {
     try {
-      console.log(`setGroups: _initFile`);
+      debugLogger(`setGroups: _initFile`);
       const data = await this.#initFile();
       data.groups = _.map(groups, (group) => {
-        return {id: group.id, description: group.description};
+        const id = _.isNumber(group.id) ? group.id.toString() : group.id;
+        const description = _.isNumber(group.description) ? group.description.toString() : group.description;
+        return {id: id, description: description};
       });
       await jf.writeFile(this.#dataFile, data, {spaces: 2});
-      return data.groups;
     } finally {
-      console.log(`setGroups: unlocking - finally`);
+      debugLogger(`setGroups: unlocking - finally`);
       this.#unlock();
     }
   }
 
   async getRecipients() {
     try {
-      console.log(`getRecipients: _initFile`);
+      debugLogger(`getRecipients: _initFile`);
       const data = await this.#initFile();
       return data.recipients;
     } finally {
-      console.log(`getRecipients: unlocking - finally`);
+      debugLogger(`getRecipients: unlocking - finally`);
+      this.#unlock();
+    }
+  }
+
+  async setRecipients(recipients) {
+    try {
+      debugLogger(`setRecipients: _initFile`);
+      const data = await this.#initFile();
+      data.recipients = _.map(recipients, (recipient) => {
+        const firstname = _.isString(recipient.firstname) ? recipient.firstname : '';
+        const lastname = _.isString(recipient.lastname) ? recipient.lastname : '';
+        const sms = _.isString(recipient.sms) ? recipient.sms : '';
+        const email = _.isString(recipient.email) ? recipient.email : '';
+        const groups = _.map(recipient.groups, (group) => {
+          const id = _.isNumber(group.id) ? group.id.toString() : group.id;
+          if (!_.isString(group.type)) {
+            throw new Error('group.type is not a string', {cause: 'notstring'});
+          }
+          return {id: id, type: group.type};
+        })
+        return {firstname: firstname, lastname: lastname, sms: sms, email: email, groups: groups};
+      });
+      await jf.writeFile(this.#dataFile, data, {spaces: 2});
+    } finally {
+      debugLogger(`setRecipients: unlocking - finally`);
       this.#unlock();
     }
   }
 
   async getRecipientsOfGroup(groupId) {
     try {
-      console.log(`getRecipientsOfGroup(${groupId}): _initFile`);
+      debugLogger(`getRecipientsOfGroup(${groupId}): _initFile`);
       const data = await this.#initFile();
       if (!_.findWhere(data.groups, {id: groupId})) {
         throw new Error("Group does not exist", {cause: 'noexist'});
@@ -130,7 +158,7 @@ export default class Data {
       });
       return recipients;
     } finally {
-      console.log(`getRecipientsOfGroup: unlocking - finally`);
+      debugLogger(`getRecipientsOfGroup: unlocking - finally`);
       this.#unlock();
     }
   }

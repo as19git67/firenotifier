@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
-const app = require('./app');
-const config = require('./config');
-const Data = require('./data');
-const debug = require('debug')('firenotifier:server');
-const http = require('http');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
+import path from 'path';
+import http from 'http';
+import https from 'https';
+import debug from 'debug';
+import app from './app.js';
+import Data from './data.js';
+import config from './config.js';
+import fs from "fs";
+
+const debugLogger = debug('firenotifier:server');
 
 let server;
 let port;
@@ -127,7 +129,7 @@ function onListening() {
   let bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+  debugLogger('Listening on ' + bind);
 
   // push configuration to backup server
   app.pushConfigToBackupServer();
