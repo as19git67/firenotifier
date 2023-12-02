@@ -8,8 +8,11 @@ import app from './app.js';
 import Data from './data.js';
 import config from './config.js';
 import fs from "fs";
+import { fileURLToPath } from 'url';
 
 const debugLogger = debug('firenotifier:server');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let server;
 let port;
