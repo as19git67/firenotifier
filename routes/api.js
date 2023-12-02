@@ -55,46 +55,54 @@ let notificationHistory = {};
 
 // test post with curl:
 // curl --insecure -F groupId=21204 -H "Authorization:Bearer 123abc"  https://localhost:5052/api/send
-router.post('/send', passport.authenticate('bearer', {session: false}), function (req, res, next) {
+router.post('/send', passport.authenticate('bearer', {session: false}), async function (req, res, next) {
   const form = formidable();
   const sms_sender_nr = config.get('sms_sender_nr');
 
   try {
     const data = new Data();
-    let all = data.getRecipients();
+    let all = await data.getRecipients();
 
-    form.parse(req, function (err, fields, files) {
-      if (!fields) {
-        fields = {};
-      }
-
-      // convert arrays with one element to element
-      _.each(_.keys(fields), function (key) {
-        let value = fields[key];
-        if (_.isArray(value) && value.length === 1) {
-          fields[key] = value[0];
+    let fields = await new Promise((resolve, reject) => {
+      form.parse(req, function (err, fields, files) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(fields);
         }
       });
+    });
+    if (!fields) {
+      fields = {};
+    }
 
-      let groupId = fields.groupId;
-      if (groupId) {
+    // convert arrays with one element to element
+    _.each(_.keys(fields), function (key) {
+      let value = fields[key];
+      if (_.isArray(value) && value.length === 1) {
+        fields[key] = value[0];
+      }
+    });
 
-        if (_isSameGroupTooEarly(groupId)) {
-          res.status(429).json({message: 'ignoring duplicate for groupID ' + groupId});
-          return;
-        }
+    let groupId = fields.groupId;
+    if (groupId) {
 
-        let recipientsByAddress = {sms: {}, smsUseSmsSenderNumber: {}, email: {}};
-        _.each(all, function (recipient) {
-          let groups = recipient.groups;
-          // console.log("groups of recipient: ", groups);
-          let recipientGroupsToNotify = _.where(groups, {id: groupId});
-          let wildcardGroupsToNotify = _.where(groups, {id: '*'});
-          recipientGroupsToNotify = recipientGroupsToNotify.concat(wildcardGroupsToNotify);
+      if (_isSameGroupTooEarly(groupId)) {
+        res.status(429).json({message: 'ignoring duplicate for groupID ' + groupId});
+        return;
+      }
 
-          _.each(recipientGroupsToNotify, function (recipientGroupToNotify) {
-            // console.log("Recipient " + recipient.lastname + ' is in group ' + groupId);
-            switch (recipientGroupToNotify.type) {
+      let recipientsByAddress = {sms: {}, smsUseSmsSenderNumber: {}, email: {}};
+      for (const recipient of all) {
+        let groups = recipient.groups;
+        // console.log("groups of recipient: ", groups);
+        let recipientGroupsToNotify = _.where(groups, {id: groupId});
+        let wildcardGroupsToNotify = _.where(groups, {id: '*'});
+        recipientGroupsToNotify = recipientGroupsToNotify.concat(wildcardGroupsToNotify);
+
+        for (const recipientGroupToNotify of recipientGroupsToNotify) {
+          // console.log("Recipient " + recipient.lastname + ' is in group ' + groupId);
+          switch (recipientGroupToNotify.type) {
             case 'email':
               if (recipient.email) {
                 recipientsByAddress.email[recipient.email] = {
@@ -118,46 +126,45 @@ router.post('/send', passport.authenticate('bearer', {session: false}), function
                 }
               }
               break;
-            }
-          }, this);
-        }, this);
-        // let recipients = {sms: Object.keys(recipientsByAddress.sms), email: Object.keys(recipientsByAddress.email)};
-
-        console.log(`${req.user.name} requested to notify group ${groupId}`);
-        console.log(`Recipients: ${JSON.stringify(recipientsByAddress)}`);
-
-        let promises = [];
-
-        if (Object.keys(recipientsByAddress.sms).length > 0 ||
-            Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
-          let textSMS = _generateTextForSMS(fields);
-          // send in the first batch sms where sender is the group name
-          if (Object.keys(recipientsByAddress.sms).length > 0) {
-            promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.sms, textSMS.sender));
-          }
-          // now send in a second batch to all recipients where sender should be a number
-          if (Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
-            promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.smsUseSmsSenderNumber, sms_sender_nr));
           }
         }
-
-        if (Object.keys(recipientsByAddress.email).length > 0) {
-          let textEmail = _generateTextForEmail(fields);
-          promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email)));
-        }
-
-        Promise.all(promises).then(values => {
-          res.json({ok: true});
-        }).catch(reason => {
-          console.log("Sending notifications failed: " + reason.message ? reason.message : 'unknown');
-          res.status(500).json({ok: false, error: reason.message ? reason.message : 'Sending notifications failed'});
-        });
-      } else {
-        console.log("Ignoring request, because groupId is missing in request body.");
-        res.status(403).json({error: 'groupId in request body missing'});
       }
-    });
-  } catch(ex) {
+      // let recipients = {sms: Object.keys(recipientsByAddress.sms), email: Object.keys(recipientsByAddress.email)};
+
+      console.log(`${req.user.name} requested to notify group ${groupId}`);
+      console.log(`Recipients: ${JSON.stringify(recipientsByAddress)}`);
+
+      let promises = [];
+
+      if (Object.keys(recipientsByAddress.sms).length > 0 ||
+        Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
+        let textSMS = await _generateTextForSMS(fields);
+        // send in the first batch sms where sender is the group name
+        if (Object.keys(recipientsByAddress.sms).length > 0) {
+          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.sms, textSMS.sender));
+        }
+        // now send in a second batch to all recipients where sender should be a number
+        if (Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
+          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.smsUseSmsSenderNumber, sms_sender_nr));
+        }
+      }
+
+      if (Object.keys(recipientsByAddress.email).length > 0) {
+        let textEmail = _generateTextForEmail(fields);
+        promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email)));
+      }
+
+      Promise.all(promises).then(values => {
+        res.json({ok: true});
+      }).catch(reason => {
+        console.log("Sending notifications failed: " + reason.message ? reason.message : 'unknown');
+        res.status(500).json({ok: false, error: reason.message ? reason.message : 'Sending notifications failed'});
+      });
+    } else {
+      console.log("Ignoring request, because groupId is missing in request body.");
+      res.status(403).json({error: 'groupId in request body missing'});
+    }
+  } catch (ex) {
     console.log(ex);
     res.status(500).json({ok: false, error: ex.message ? ex.message : 'Sending notifications failed'});
   }
@@ -189,7 +196,7 @@ router.post('/groups', passport.authenticate('bearer', {session: false}), functi
             }
           });
         }
-      } catch(ex) {
+      } catch (ex) {
         console.log(ex);
         res.status(500).json({ok: false, error: ex.message ? ex.message : 'Set groups/recipients failed'});
       }
@@ -221,8 +228,9 @@ function _isSameGroupTooEarly(groupId) {
   return isTooEarly;
 }
 
-function _getGroupNameById(groupId) {
-  let groups = config.get('groups');
+async function _getGroupNameById(groupId) {
+  const data = new Data();
+  const groups = await data.getGroups();
   let group = _.findWhere(groups, {id: groupId});
   if (!group) {
     group = _.findWhere(groups, {id: '*'});
@@ -234,8 +242,9 @@ function _getGroupNameById(groupId) {
   }
 }
 
-function _getGroupResponsibleEmailById(groupId) {
-  let groups = config.get('groups');
+async function _getGroupResponsibleEmailById(groupId) {
+  const data = new Data();
+  const groups = await data.getGroups();
   let group = _.findWhere(groups, {id: groupId});
   if (!group) {
     group = _.findWhere(groups, {id: '*'});
@@ -337,9 +346,9 @@ function _makeAddress(data) {
   return addressParts.join(', ');
 }
 
-function _generateTextForSMS(data) {
+async function _generateTextForSMS(data) {
   let now = moment();
-  const whom = _getGroupNameById(data.groupId);
+  const whom = await _getGroupNameById(data.groupId);
   const date_formatted = now.format('DD.MM. LT');
   const testAlarm = _isFirstSaturdayOfMonthBetween11And12(now);
 
@@ -396,9 +405,9 @@ function _generateLocationLink(longitude, latitude) {
   }
 }
 
-function _generateTextForEmail(data) {
+async function _generateTextForEmail(data) {
   let now = moment();
-  const whom = _getGroupNameById(data.groupId);
+  const whom = await _getGroupNameById(data.groupId);
   const date_formatted = now.format('LLLL');
   const testAlarm = _isFirstSaturdayOfMonthBetween11And12(now);
 
@@ -595,111 +604,112 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
   });
 }
 
-function _sendEmail(groupId, textEmail, emailAddresses) {
+async function _sendEmail(groupId, textEmail, emailAddresses) {
   console.log("Sending email to " + util.inspect(emailAddresses, {colors: true, depth: 10}));
-  return new Promise((resolve, reject) => {
 
-    // create reusable transport method (opens pool of SMTP connections)
-    let smtpTransport = nodemailer.createTransport({
-      direct: false,
-      host: config.get('email_smtp_server_host'),
-      port: config.get('email_smtp_server_port'),
-      secureConnection: config.get('email_smtp_use_SSL'),
-      auth: {
-        user: config.get('email_smtp_username'),
-        pass: config.get('email_smtp_password')
-      }
-    });
-
-    const fromAddress = config.get('email_smtp_sender_email');
-
-    const emailMessage = textEmail.text;
-    const emailMessageHtml = textEmail.textHtml;
-    const emailSubject = textEmail.subject;
-
-    let toAddress = '';
-    for (var aIdx = 0; aIdx < emailAddresses.length; aIdx++) {
-      if (aIdx === 0) {
-        toAddress = emailAddresses[aIdx];
-      } else {
-        toAddress += ',' + emailAddresses[aIdx];
-      }
+  // create reusable transport method (opens pool of SMTP connections)
+  let smtpTransport = nodemailer.createTransport({
+    direct: false,
+    host: config.get('email_smtp_server_host'),
+    port: config.get('email_smtp_server_port'),
+    secureConnection: config.get('email_smtp_use_SSL'),
+    auth: {
+      user: config.get('email_smtp_username'),
+      pass: config.get('email_smtp_password')
     }
+  });
 
-    // setup e-mail data with unicode symbols
-    let mailOptions = {
-      from: fromAddress, // sender address
-      to: toAddress, // list of receivers
-      subject: emailSubject, // Subject line
-      text: emailMessage, // plaintext body
-      html: emailMessageHtml // html body
-    };
+  const fromAddress = config.get('email_smtp_sender_email');
 
-    let testMode = !!config.get('TEST');
-    if (testMode) {
-      console.log("TEST MODE: not sending Email");
-      resolve(emailAddresses);
+  const emailMessage = textEmail.text;
+  const emailMessageHtml = textEmail.textHtml;
+  const emailSubject = textEmail.subject;
+
+  let toAddress = '';
+  for (let aIdx = 0; aIdx < emailAddresses.length; aIdx++) {
+    if (aIdx === 0) {
+      toAddress = emailAddresses[aIdx];
     } else {
+      toAddress += ',' + emailAddresses[aIdx];
+    }
+  }
 
-      // send mail with defined transport object
+  // setup e-mail data with unicode symbols
+  let mailOptions = {
+    from: fromAddress, // sender address
+    to: toAddress, // list of receivers
+    subject: emailSubject, // Subject line
+    text: emailMessage, // plaintext body
+    html: emailMessageHtml // html body
+  };
+
+  let testMode = !!config.get('TEST');
+  if (testMode) {
+    console.log("TEST MODE: not sending Email");
+    return emailAddresses;
+  } else {
+
+    // send mail with defined transport object
+    const info = await new Promise((resolve, reject) => {
       smtpTransport.sendMail(mailOptions, (error, info) => {
-
         if (error) {
           console.log("ERROR sending email:", error.message);
           reject(error);
         } else {
-          let accepted = info.accepted;
-          let rejected = info.rejected;
-
-          const responsibleEmail = _getGroupResponsibleEmailById(groupId);
-          if (responsibleEmail && rejected.length > 0) {
-            mailOptions.to = responsibleEmail;
-            mailOptions.subject = 'Zurückgewiesene Emails';
-            mailOptions.text = '';
-            mailOptions.html = templates.nonDeliveryReport({recipients: rejected});
-            smtpTransport.sendMail(mailOptions, (error, info) => {
-              if (error) {
-                console.log("ERROR sending NDR email: " + error.message);
-              } else {
-                console.log('NDR email sent');
-              }
-              resolve(accepted);
-            });
-          } else {
-            resolve(accepted);
-          }
+          resolve(info);
         }
       });
-    }
-  });
-}
-
-function _sendSmsStatusEmail(groupId, statuses) {
-  return new Promise((resolve, reject) => {
-
-    // create reusable transport method (opens pool of SMTP connections)
-    let smtpTransport = nodemailer.createTransport({
-      direct: false,
-      host: config.get('email_smtp_server_host'),
-      port: config.get('email_smtp_server_port'),
-      secureConnection: config.get('email_smtp_use_SSL'),
-      auth: {
-        user: config.get('email_smtp_username'),
-        pass: config.get('email_smtp_password')
-      }
     });
 
-    const fromAddress = config.get('email_smtp_sender_email');
-    const responsibleEmail = _getGroupResponsibleEmailById(groupId);
+    let accepted = info.accepted;
+    let rejected = info.rejected;
 
-    if (responsibleEmail && statuses.length > 0) {
-      let mailOptions = {
-        from: fromAddress, // sender address
-        to: responsibleEmail,
-        subject: 'Fehler bei der SMS-Zustellung',
-        html: templates.smsStatusReport({statuses: statuses}) // html body
-      };
+    const responsibleEmail = await _getGroupResponsibleEmailById(groupId);
+    if (responsibleEmail && rejected.length > 0) {
+      mailOptions.to = responsibleEmail;
+      mailOptions.subject = 'Zurückgewiesene Emails';
+      mailOptions.text = '';
+      mailOptions.html = templates.nonDeliveryReport({recipients: rejected});
+      smtpTransport.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.log("ERROR sending NDR email: " + error.message);
+        } else {
+          console.log('NDR email sent');
+        }
+        return accepted;
+      });
+    } else {
+      return accepted;
+    }
+  }
 
+}
+
+async function _sendSmsStatusEmail(groupId, statuses) {
+  // create reusable transport method (opens pool of SMTP connections)
+  let smtpTransport = nodemailer.createTransport({
+    direct: false,
+    host: config.get('email_smtp_server_host'),
+    port: config.get('email_smtp_server_port'),
+    secureConnection: config.get('email_smtp_use_SSL'),
+    auth: {
+      user: config.get('email_smtp_username'),
+      pass: config.get('email_smtp_password')
+    }
+  });
+
+  const fromAddress = config.get('email_smtp_sender_email');
+  const responsibleEmail = await _getGroupResponsibleEmailById(groupId);
+
+  if (responsibleEmail && statuses.length > 0) {
+    let mailOptions = {
+      from: fromAddress, // sender address
+      to: responsibleEmail,
+      subject: 'Fehler bei der SMS-Zustellung',
+      html: templates.smsStatusReport({statuses: statuses}) // html body
+    };
+
+    await new Promise((resolve, reject) => {
       smtpTransport.sendMail(mailOptions, (error, info) => {
         if (error) {
           reject(error);
@@ -707,11 +717,9 @@ function _sendSmsStatusEmail(groupId, statuses) {
           resolve();
         }
       });
-    } else {
-      resolve();
-    }
+    });
+  }
 
-  });
 }
 
 export default router;
