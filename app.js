@@ -5,10 +5,12 @@ import cookieParser from 'cookie-parser';
 import logger from 'morgan';
 import _ from 'underscore';
 import axios from 'axios';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
 
 import config from './config.js';
 import apiRouter from './routes/api.js';
+import Data from "./data.js";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,56 +60,72 @@ app.doInitialConfig = function () {
   });
 };
 
-const lazyPushConfig = _.debounce(function (syncDestination) {
+const lazyPushConfig = _.debounce(async function (syncDestination) {
 
-    let restapiUrl = syncDestination.restapiUrl;
-    let authorizationBearer = syncDestination.authorizationBearer;
-    let acceptSelfSignedCertificate = syncDestination.acceptSelfSignedCertificate;
+  let restapiUrl = syncDestination.syncDestination_url;
+  let authorizationBearer = syncDestination.syncDestination_bearerToken;
+  let acceptSelfSignedCertificate = syncDestination.syncDestination_acceptSelfSignedCertificate;
 
-    if (restapiUrl && authorizationBearer) {
-      console.log(`push configuration to ${restapiUrl}`);
-      let reqOpts = {
-        url: restapiUrl,
-        auth: {bearer: authorizationBearer},
-        method: 'POST',
-        json: {groups: config.get('groups'), recipients: config.get('recipients')}
-      };
+  if (restapiUrl && authorizationBearer) {
+    console.log(`push configuration to ${restapiUrl}`);
+    let reqOpts = {
+      url: restapiUrl,
+      auth: {bearer: authorizationBearer},
+      method: 'POST',
+      json: {groups: config.get('groups'), recipients: config.get('recipients')}
+    };
 
-      if (acceptSelfSignedCertificate) {
-        console.log("Accepting self signed certificate for " + restapiUrl);
-        reqOpts.agentOptions = {
-          insecure: true,
-          rejectUnauthorized: false
-        };
-      }
-
-      const agent = new https.Agent({
+    if (acceptSelfSignedCertificate) {
+      console.log("Accepting self signed certificate for " + restapiUrl);
+      reqOpts.agentOptions = {
+        insecure: true,
         rejectUnauthorized: false
-      });
-
-      axios.post(restapiUrl, {groups: config.get('groups'), recipients: config.get('recipients')},
-        {headers: {auth: {bearer: authorizationBearer}}, httpsAgent: agent}).then((httpResponse) => {
-        if (httpResponse.statusCode === 200) {
-          console.log(`config push to ${restapiUrl} was successful`);
-        } else {
-          console.log(`config push to ${restapiUrl} returned status ${httpResponse.statusCode}: ${httpResponse.statusMessage}`);
-        }
-      }).catch((error) => {
-        console.log('ERROR while sending request for config push:', err);
-      });
-
-    } else {
-      console.log("Skipped config sync destination, because not fully configured");
+      };
     }
+
+    const agent = new https.Agent({
+      rejectUnauthorized: false
+    });
+
+    try {
+      const data = new Data();
+      let groups = await data.getGroups();
+      let recipients = await data.getRecipients();
+
+      await new Promise((resolve, reject) => {
+        axios.post(restapiUrl, {groups: groups, recipients: recipients},
+          {headers: {auth: {bearer: authorizationBearer}}, httpsAgent: agent}).then((httpResponse) => {
+          if (httpResponse.statusCode === 200) {
+            console.log(`config push to ${restapiUrl} was successful`);
+          } else {
+            console.log(`config push to ${restapiUrl} returned status ${httpResponse.statusCode}: ${httpResponse.statusMessage}`);
+          }
+          resolve();
+        }).catch((error) => {
+          reject(error);
+        });
+      });
+    } catch(ex) {
+      console.log('ERROR while sending request for config push:');
+      console.log(ex);
+    }
+
+  } else {
+    console.log("Skipped config sync destination, because not fully configured");
+  }
 
 }, 70000);
 
 app.pushConfigToBackupServer = function () {
-  const configSyncDest = config.get("configSyncDestination");
-  if (configSyncDest) {
+  const configSyncDest = {
+    syncDestination_url: config.get("syncDestination_url"),
+    syncDestination_bearerToken: config.get("syncDestination_bearerToken"),
+    syncDestination_acceptSelfSignedCertificate: config.get("syncDestination_acceptSelfSignedCertificate"),
+  };
+  if (configSyncDest.syncDestination_url && configSyncDest.syncDestination_bearerToken) {
     lazyPushConfig(configSyncDest);
   } else {
-    console.log("Not pushing configuration, because configSyncDestionations are not fully specified in configuration");
+    console.log("Not pushing configuration, because syncDestination_url or syncDestination_bearerToken are not specified in configuration");
   }
 };
 
