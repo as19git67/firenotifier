@@ -58,9 +58,8 @@ app.doInitialConfig = function () {
   });
 };
 
-const lazyPushConfig = _.debounce(function (configSyncDest) {
+const lazyPushConfig = _.debounce(function (syncDestination) {
 
-  _.each(configSyncDest, function (syncDestination) {
     let restapiUrl = syncDestination.restapiUrl;
     let authorizationBearer = syncDestination.authorizationBearer;
     let acceptSelfSignedCertificate = syncDestination.acceptSelfSignedCertificate;
@@ -100,13 +99,12 @@ const lazyPushConfig = _.debounce(function (configSyncDest) {
     } else {
       console.log("Skipped config sync destination, because not fully configured");
     }
-  }, this);
 
 }, 70000);
 
 app.pushConfigToBackupServer = function () {
-  let configSyncDest = config.get("configSyncDestinations");
-  if (configSyncDest && configSyncDest.length > 0) {
+  const configSyncDest = config.get("configSyncDestination");
+  if (configSyncDest) {
     lazyPushConfig(configSyncDest);
   } else {
     console.log("Not pushing configuration, because configSyncDestionations are not fully specified in configuration");

@@ -88,7 +88,7 @@ function watchForConfigChange(cfgFilepath) {
 nconf.defaults({
   "httpPort": 5002,
   "bearerTokens": {},
-  "configSyncDestinations": [],
+  "configSyncDestination": "",
   "minWaitMinutesToNotifySameGroup": 2,
   "sms_client_id": "",
   "sms_client_secret": "",

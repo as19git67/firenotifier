@@ -101,6 +101,53 @@ describe('Testing the Datafile function', () => {
     expect(recipients[1].groups[1].type).to.equal('email');
   });
 
+  it('Get recipients by group', async function() {
+    const data = new Data();
+    await data.setRecipients([
+      {
+        "firstname": "Joe",
+        "lastname": "Miller",
+        "groups": [{"id": "alpha", "type": "sms"}, {"id": "info22222", "type": "email"}],
+        "sms": "+4915228895456",
+        "email": "joe.miller@example.com"
+      },
+      {
+        "firstname": "Hans",
+        "lastname": "im Glück",
+        "groups": [{"id": "2", "type": "sms"}, {"id": "alpha", "type": "email"}],
+        "sms": "+491729925904",
+        "email": "hans.im.glueck@example.com"
+      },
+      {
+        "firstname": "Mia",
+        "lastname": "Sunshine",
+        "groups": [{"id": "alpha", "type": "sms"}, {"id": "22223", "type": "email"}],
+        "sms": "+4915254599371",
+        "email": "mia.sun@example.com"
+      }
+    ]);
+    const recipientOfGroupAlpha = await data.getRecipientsOfGroup('alpha');
+    expect(recipientOfGroupAlpha.length).to.equal(3);
+    expect(recipientOfGroupAlpha[0].firstname).to.equal('Joe');
+    expect(recipientOfGroupAlpha[0].lastname).to.equal('Miller');
+    expect(recipientOfGroupAlpha[0].sms).to.equal('+4915228895456');
+    expect(recipientOfGroupAlpha[0].email).to.equal('joe.miller@example.com');
+    expect(recipientOfGroupAlpha[1].firstname).to.equal('Hans');
+    expect(recipientOfGroupAlpha[1].lastname).to.equal('im Glück');
+    expect(recipientOfGroupAlpha[1].sms).to.equal('+491729925904');
+    expect(recipientOfGroupAlpha[1].email).to.equal('hans.im.glueck@example.com');
+    expect(recipientOfGroupAlpha[2].firstname).to.equal('Mia');
+    expect(recipientOfGroupAlpha[2].lastname).to.equal('Sunshine');
+    expect(recipientOfGroupAlpha[2].sms).to.equal('+4915254599371');
+    expect(recipientOfGroupAlpha[2].email).to.equal('mia.sun@example.com');
+    const recipientOfGroup2 = await data.getRecipientsOfGroup('2');
+    expect(recipientOfGroup2.length).to.equal(1);
+    expect(recipientOfGroup2[0].firstname).to.equal('Hans');
+    expect(recipientOfGroup2[0].lastname).to.equal('im Glück');
+    expect(recipientOfGroup2[0].sms).to.equal('+491729925904');
+    expect(recipientOfGroup2[0].email).to.equal('hans.im.glueck@example.com');
+  });
+
   it('Parallel - locking', async function() {
     const data1 = new Data();
     const data2 = new Data();

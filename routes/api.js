@@ -42,7 +42,7 @@ let templates = {
   smsAlarmWithCompleteInfo: Handlebars.compile("Alarm {{whom}}: {{date_formatted}} {{keyword}} {{catchword}} {{address}}"),
 
   nonDeliveryReport: Handlebars.compile(
-    "<h2>An folgende Adressen konnte die Email nicht zugestellt werden:</h2>{{#each recipients}}<p>{{this}}</p>{{/each}}"),
+    "<h2>An folgende Adressen konnte die E-Mail nicht zugestellt werden:</h2>{{#each recipients}}<p>{{this}}</p>{{/each}}"),
   smsStatusReport: Handlebars.compile("<h2>SMS konnte an folgende Empfänger nicht korrekt zugestellt werden:</h2>" +
     "<table><tbody>" +
     "{{#each statuses}}<tr>" +
@@ -56,14 +56,30 @@ let notificationHistory = {};
 // test post with curl:
 // curl --insecure -F groupId=21204 -H "Authorization:Bearer 123abc"  https://localhost:5052/api/send
 router.post('/send', passport.authenticate('bearer', {session: false}), async function (req, res, next) {
-  const form = formidable();
   const sms_sender_nr = config.get('sms_sender_nr');
+  const minWaitMinutes = config.get('minWaitMinutesToNotifySameGroup');
+
+  const smsConfig = {
+    sms_client_id: config.get('sms_client_id'),
+    sms_client_secret: config.get('sms_client_secret'),
+    sms_validity_hours: config.get('sms_validity_hours'),
+    sms_wait_for_status: config.get('sms_wait_for_status'),
+  };
+  const emailConfig = {
+    email_postmaster_address: config.get('email_postmaster_address'),
+    email_smtp_server_host: config.get('email_smtp_server_host'),
+    email_smtp_server_port: config.get('email_smtp_server_port'),
+    email_smtp_use_SSL: config.get('email_smtp_use_SSL'),
+    email_smtp_username: config.get('email_smtp_username'),
+    email_smtp_password: config.get('email_smtp_password'),
+    };
 
   try {
     const data = new Data();
     let all = await data.getRecipients();
 
     let fields = await new Promise((resolve, reject) => {
+      const form = formidable();
       form.parse(req, function (err, fields, files) {
         if (err) {
           reject(err);
@@ -87,7 +103,7 @@ router.post('/send', passport.authenticate('bearer', {session: false}), async fu
     let groupId = fields.groupId;
     if (groupId) {
 
-      if (_isSameGroupTooEarly(groupId)) {
+      if (_isSameGroupTooEarly(groupId, minWaitMinutes)) {
         res.status(429).json({message: 'ignoring duplicate for groupID ' + groupId});
         return;
       }
@@ -141,17 +157,17 @@ router.post('/send', passport.authenticate('bearer', {session: false}), async fu
         let textSMS = await _generateTextForSMS(fields);
         // send in the first batch sms where sender is the group name
         if (Object.keys(recipientsByAddress.sms).length > 0) {
-          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.sms, textSMS.sender));
+          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.sms, textSMS.sender, smsConfig, emailConfig));
         }
         // now send in a second batch to all recipients where sender should be a number
         if (Object.keys(recipientsByAddress.smsUseSmsSenderNumber).length > 0) {
-          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.smsUseSmsSenderNumber, sms_sender_nr));
+          promises.push(_sendSMS(groupId, textSMS, recipientsByAddress.smsUseSmsSenderNumber, sms_sender_nr, smsConfig, emailConfig));
         }
       }
 
       if (Object.keys(recipientsByAddress.email).length > 0) {
         let textEmail = _generateTextForEmail(fields);
-        promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email)));
+        promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email), smsConfig, emailConfig));
       }
 
       Promise.all(promises).then(values => {
@@ -170,32 +186,37 @@ router.post('/send', passport.authenticate('bearer', {session: false}), async fu
   }
 });
 
-// REST call to set the groups and recipients part of the configuration
-router.post('/groups', passport.authenticate('bearer', {session: false}), function (req, res, next) {
+// REST call to get the groups and recipients
+router.get('/data', passport.authenticate('bearer', {session: false}), async function (req, res, next) {
+    try {
+      const data = new Data();
+      const all = {
+        groups: await data.getGroups(),
+        recipients: await data.getRecipients()
+      };
+      res.status(200).json(all);
+      console.log("Updated configuration file saved");
+    } catch (ex) {
+      console.log(ex);
+      res.status(500).json({ok: false, error: ex.message ? ex.message : 'Get groups and recipients failed'});
+    }
+  }
+);
+
+// REST call to set the groups and recipients
+router.post('/data', passport.authenticate('bearer', {session: false}), async function (req, res, next) {
     if (req.body) {
       try {
         const data = new Data();
 
-        let configChanged = false;
         if (req.body.groups && _.isArray(req.body.groups)) {
-          configChanged = true;
-          data.setGroups(req.body.groups);
+          await data.setGroups(req.body.groups);
         }
         if (req.body.recipients && _.isArray(req.body.recipients)) {
-          configChanged = true;
-          config.set('recipients', req.body.recipients)
+          await data.setRecipients(req.body.recipients);
         }
-        if (configChanged) {
-          config.save(function (err) {
-            if (err) {
-              console.log('Writing configuration file failed: ', err);
-              res.status(500).end();
-            } else {
-              console.log("Updated configuration file saved");
-              res.end();
-            }
-          });
-        }
+        console.log("Updated configuration file saved");
+        res.end();
       } catch (ex) {
         console.log(ex);
         res.status(500).json({ok: false, error: ex.message ? ex.message : 'Set groups/recipients failed'});
@@ -207,9 +228,8 @@ router.post('/groups', passport.authenticate('bearer', {session: false}), functi
   }
 );
 
-function _isSameGroupTooEarly(groupId) {
+function _isSameGroupTooEarly(groupId, minWaitMinutes) {
   const lastMessageDate = notificationHistory[groupId];
-  const minWaitMinutes = config.get('minWaitMinutesToNotifySameGroup');
   const now = moment();
 
   let isTooEarly = false;
@@ -242,7 +262,7 @@ async function _getGroupNameById(groupId) {
   }
 }
 
-async function _getGroupResponsibleEmailById(groupId) {
+async function _getGroupResponsibleEmailById(groupId, postmasterEmail) {
   const data = new Data();
   const groups = await data.getGroups();
   let group = _.findWhere(groups, {id: groupId});
@@ -250,9 +270,9 @@ async function _getGroupResponsibleEmailById(groupId) {
     group = _.findWhere(groups, {id: '*'});
   }
   if (group) {
-    return group.responsible ? group.responsible : config.get('email_postmaster_address');
+    return group.responsible ? group.responsible : postmasterEmail;
   } else {
-    return config.get('email_postmaster_address');
+    return postmasterEmail;
   }
 }
 
@@ -321,11 +341,11 @@ function _makeKeywordEmoji(data) {
 }
 
 function _makeAddress(data) {
-  let street = _.isArray(data.street) && data.street.length > 0 ? data.street[0] : data.street;
-  let streetnumber = _.isArray(data.streetnumber) && data.streetnumber.length > 0 ? data.streetnumber[0] : data.streetnumber;
-  let city = _.isArray(data.city) && data.city.length > 0 ? data.city[0] : data.city;
-  let object = _.isArray(data.object) && data.object.length > 0 ? data.object[0] : data.object;
-  let streetParts = [];
+  const street = _.isArray(data.street) && data.street.length > 0 ? data.street[0] : data.street;
+  const streetnumber = _.isArray(data.streetnumber) && data.streetnumber.length > 0 ? data.streetnumber[0] : data.streetnumber;
+  const city = _.isArray(data.city) && data.city.length > 0 ? data.city[0] : data.city;
+  const object = _.isArray(data.object) && data.object.length > 0 ? data.object[0] : data.object;
+  const streetParts = [];
   if (street) {
     streetParts.push(street);
   }
@@ -347,7 +367,7 @@ function _makeAddress(data) {
 }
 
 async function _generateTextForSMS(data) {
-  let now = moment();
+  const now = moment();
   const whom = await _getGroupNameById(data.groupId);
   const date_formatted = now.format('DD.MM. LT');
   const testAlarm = _isFirstSaturdayOfMonthBetween11And12(now);
@@ -411,10 +431,10 @@ async function _generateTextForEmail(data) {
   const date_formatted = now.format('LLLL');
   const testAlarm = _isFirstSaturdayOfMonthBetween11And12(now);
 
-  let keywordEmoji = _makeKeywordEmoji(data);
-  let location = _generateLocationLink(data.longitude, data.latitude);
-  let address = _makeAddress(data);
-  let resource = data.resource ? (_.isArray(data.resource) ? data.resource : [data.resource]) : [];
+  const keywordEmoji = _makeKeywordEmoji(data);
+  const location = _generateLocationLink(data.longitude, data.latitude);
+  const address = _makeAddress(data);
+  const resource = data.resource ? (_.isArray(data.resource) ? data.resource : [data.resource]) : [];
 
   // plain text
   let templateName = 'emailTextAlarm0';
@@ -483,9 +503,9 @@ async function _generateTextForEmail(data) {
   return {text: text, textHtml: textHtml, subject: subject};
 }
 
-function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
+function _sendSMS(groupId, textSMS, recipientsByAddress, sender, smsConfig, emailConfig) {
   return new Promise((resolve, reject) => {
-    let recipients = Object.keys(recipientsByAddress);
+    const recipients = Object.keys(recipientsByAddress);
     // console.log("Sending SMS (" + textSMS.text + ") to group " + groupId);
     let t = textSMS.text;
     if (t && t.length > 40) {
@@ -493,9 +513,9 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
     }
     console.log(`Sending SMS (${t}) to group ${groupId}`);
 
-    const clientId = config.get('sms_client_id');
-    const clientSecret = config.get('sms_client_secret');
-    const validityHours = config.get('sms_validity_hours');
+    const clientId = smsConfig.sms_client_id;
+    const clientSecret = smsConfig.sms_client_secret;
+    const validityHours = smsConfig.sms_validity_hours;
 
     let testMode = !!config.get('TEST');
     if (testMode) {
@@ -526,7 +546,7 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
         });
 
         resolve(recipients);
-        const waitSecondsUntilRetrievingStatus = config.get('sms_wait_for_status');
+        const waitSecondsUntilRetrievingStatus = smsConfig.sms_wait_for_status;
         console.log(`Waiting ${waitSecondsUntilRetrievingStatus} seconds until status for sent sms will be retrieved.`);
 
         setTimeout(function () {
@@ -586,7 +606,7 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
             let sortedRecipientStatuses = _.sortBy(failedRecipients, 'name');
 
             // console.log("SMS Statuses: ", sortedRecipientStatuses);
-            _sendSmsStatusEmail(groupId, sortedRecipientStatuses).then(() => {
+            _sendSmsStatusEmail(groupId, sortedRecipientStatuses, emailConfig).then(() => {
               console.log('SMS delivery status email sent');
             }).catch(reason => {
               console.log("ERROR sending SMS delivery status email: " + reason.message);
@@ -604,22 +624,24 @@ function _sendSMS(groupId, textSMS, recipientsByAddress, sender) {
   });
 }
 
-async function _sendEmail(groupId, textEmail, emailAddresses) {
+async function _sendEmail(groupId, textEmail, emailAddresses, emailConfig) {
   console.log("Sending email to " + util.inspect(emailAddresses, {colors: true, depth: 10}));
+
+  const postmasterEmail = emailConfig.email_postmaster_address;
 
   // create reusable transport method (opens pool of SMTP connections)
   let smtpTransport = nodemailer.createTransport({
     direct: false,
-    host: config.get('email_smtp_server_host'),
-    port: config.get('email_smtp_server_port'),
-    secureConnection: config.get('email_smtp_use_SSL'),
+    host: emailConfig.email_smtp_server_host,
+    port: emailConfig.email_smtp_server_port,
+    secureConnection: emailConfig.email_smtp_use_SSL,
     auth: {
-      user: config.get('email_smtp_username'),
-      pass: config.get('email_smtp_password')
+      user: emailConfig.email_smtp_username,
+      pass: emailConfig.email_smtp_password
     }
   });
 
-  const fromAddress = config.get('email_smtp_sender_email');
+  const fromAddress = emailConfig.email_smtp_sender_email;
 
   const emailMessage = textEmail.text;
   const emailMessageHtml = textEmail.textHtml;
@@ -664,7 +686,7 @@ async function _sendEmail(groupId, textEmail, emailAddresses) {
     let accepted = info.accepted;
     let rejected = info.rejected;
 
-    const responsibleEmail = await _getGroupResponsibleEmailById(groupId);
+    const responsibleEmail = await _getGroupResponsibleEmailById(groupId, postmasterEmail);
     if (responsibleEmail && rejected.length > 0) {
       mailOptions.to = responsibleEmail;
       mailOptions.subject = 'Zurückgewiesene Emails';
@@ -685,21 +707,21 @@ async function _sendEmail(groupId, textEmail, emailAddresses) {
 
 }
 
-async function _sendSmsStatusEmail(groupId, statuses) {
+async function _sendSmsStatusEmail(groupId, statuses, emailConfig) {
   // create reusable transport method (opens pool of SMTP connections)
   let smtpTransport = nodemailer.createTransport({
     direct: false,
-    host: config.get('email_smtp_server_host'),
-    port: config.get('email_smtp_server_port'),
-    secureConnection: config.get('email_smtp_use_SSL'),
+    host: emailConfig.email_smtp_server_host,
+    port: emailConfig.email_smtp_server_port,
+    secureConnection: emailConfig.email_smtp_use_SSL,
     auth: {
-      user: config.get('email_smtp_username'),
-      pass: config.get('email_smtp_password')
+      user: emailConfig.email_smtp_username,
+      pass: emailConfig.email_smtp_password
     }
   });
 
-  const fromAddress = config.get('email_smtp_sender_email');
-  const responsibleEmail = await _getGroupResponsibleEmailById(groupId);
+  const fromAddress = emailConfig.email_smtp_sender_email;
+  const responsibleEmail = await _getGroupResponsibleEmailById(groupId, emailConfig.email_postmaster_address);
 
   if (responsibleEmail && statuses.length > 0) {
     let mailOptions = {

@@ -1,6 +1,8 @@
+/node_modules/
+.idea/
 /settings.json
+/settings.example.json
 /data.json
 /key.pem
 /cert.pem
-/node_modules/
-.idea/
+/docker_run.sh
