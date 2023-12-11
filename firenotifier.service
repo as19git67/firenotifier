@@ -1,4 +1,5 @@
-# copy to /etc/systemd/system
+# copy to /etc/systemd/system and change the path to the firenotifier directory
+# not needed when running in docker
 # systemctl enable firenotifier
 # systemctl start firenotifier
 [Unit]
