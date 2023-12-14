@@ -9,6 +9,7 @@ import Data from './data.js';
 import config from './config.js';
 import fs from "fs";
 import { fileURLToPath } from 'url';
+import _ from 'underscore';
 
 const debugLogger = debug('firenotifier:server');
 const __filename = fileURLToPath(import.meta.url);
