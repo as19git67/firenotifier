@@ -105,6 +105,7 @@ nconf.defaults({
   "email_smtp_server_port": "",
   "email_postmaster_address": "",
   "dataDirectory": "/data",
+  "authConfigDirectory": "/data",
   "XXXgroups":
     [{"id": "22222", "description": "test gruppe"}],
   "XXrecipients": [

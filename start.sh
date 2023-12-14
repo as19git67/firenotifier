@@ -4,7 +4,6 @@
   echo "{"
   echo "  \"httpPort\": $PORT_HTTP,"
   echo "  \"httpsPort\": $PORT_HTTPS,"
-  echo "  \"bearerTokens\": $BEARER_TOKENS_JSON",
   echo "  \"syncDestination_url\": \"$SYNCDESTINATION_URL\"",
   echo "  \"syncDestination_bearerToken\": \"$SYNCDESTINATION_BEARERTOKEN\"",
   echo "  \"syncDestination_acceptSelfSignedCertificate\": $SYNCDESTINATION_ACCEPTSELFSIGNEDCERTIFICATE",
@@ -24,6 +23,8 @@
 } >  /app/settings.json
 
 
-openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout /app/key.pem -out /app/cert.pem -subj "$SSL_CERT_SUBJ"
+if [ -z ${SSL_CERT_SUBJ:+x} ]; then
+  openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout /app/key.pem -out /app/cert.pem -subj "$SSL_CERT_SUBJ";
+fi
 
 node ./server.js
