@@ -32,6 +32,9 @@ app.doInitialConfig().then(async function () {
   console.log(`Datafile has ${groups.length} groups and ${recipients.length} recipients`);
 
   port = config.get('httpsPort');
+  if (_.isString(port)) {
+    port = parseInt(port);
+  }
 
   if (port) {
     app.set('port', port);
@@ -57,6 +60,9 @@ app.doInitialConfig().then(async function () {
     port = process.env.PORT || config.get('httpPort');
     //const httpPort = normalizePort(process.env.PORT || '3000');
     if (port) {
+      if (_.isString(port)) {
+        port = parseInt(port);
+      }
       app.set('port', port);
       // Create HTTP server
       server = http.createServer(app);

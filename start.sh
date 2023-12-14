@@ -2,11 +2,11 @@
 
 {
   echo "{"
-  echo "  \"httpPort\": $PORT_HTTP,"
-  echo "  \"httpsPort\": $PORT_HTTPS,"
-  echo "  \"syncDestination_url\": \"$SYNCDESTINATION_URL\"",
-  echo "  \"syncDestination_bearerToken\": \"$SYNCDESTINATION_BEARERTOKEN\"",
-  echo "  \"syncDestination_acceptSelfSignedCertificate\": $SYNCDESTINATION_ACCEPTSELFSIGNEDCERTIFICATE",
+  echo "  \"httpPort\": \"$PORT_HTTP\","
+  echo "  \"httpsPort\": \"$PORT_HTTPS\","
+  echo "  \"syncDestination_url\": \"$SYNCDESTINATION_URL\","
+  echo "  \"syncDestination_bearerToken\": \"$SYNCDESTINATION_BEARERTOKEN\","
+  echo "  \"syncDestination_acceptSelfSignedCertificate\": \"$SYNCDESTINATION_ACCEPTSELFSIGNEDCERTIFICATE\","
   echo "  \"sms_client_id\": \"$SMS_CLIENT_ID\","
   echo "  \"sms_client_secret\": \"$SMS_CLIENT_SECRET\","
   echo "  \"sms_sender_nr\": \"$SMS_SENDER_NR\","
