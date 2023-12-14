@@ -87,7 +87,6 @@ function watchForConfigChange(cfgFilepath) {
 
 nconf.defaults({
   "httpPort": 5002,
-  "bearerTokens": {},
   "syncDestination_url": "",
   "syncDestination_bearerToken": "",
   "syncDestination_acceptSelfSignedCertificate": false,
