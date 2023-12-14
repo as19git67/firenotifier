@@ -23,7 +23,7 @@
 } >  /app/settings.json
 
 
-if [ -z ${SSL_CERT_SUBJ:+x} ]; then
+if [ -n "${SSL_CERT_SUBJ:+x}" ]; then
   openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout /app/key.pem -out /app/cert.pem -subj "$SSL_CERT_SUBJ";
 fi
 
