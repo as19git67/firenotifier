@@ -57,22 +57,22 @@ let notificationHistory = {};
 // curl --insecure -F groupId=21204 -H "Authorization:Bearer 123abc"  https://localhost:5052/api/send
 router.post('/send', passport.authenticate('bearer', {session: false}), async function (req, res, next) {
   const sms_sender_nr = config.get('sms_sender_nr');
-  const minWaitMinutes = config.get('minWaitMinutesToNotifySameGroup');
+  const minWaitMinutes = isNaN(parseInt(config.get('minWaitMinutesToNotifySameGroup'))) ? 2 : parseInt(config.get('minWaitMinutesToNotifySameGroup'));
 
   const smsConfig = {
     sms_client_id: config.get('sms_client_id'),
     sms_client_secret: config.get('sms_client_secret'),
-    sms_validity_hours: config.get('sms_validity_hours'),
-    sms_wait_for_status: config.get('sms_wait_for_status'),
+    sms_validity_hours: isNaN(parseInt(config.get('sms_validity_hours'))) ? 2 : parseInt(config.get('sms_validity_hours')),
+    sms_wait_for_status: isNaN(parseInt(config.get('sms_wait_for_status'))) ? 3600 : parseInt(config.get('sms_wait_for_status')),
   };
   const emailConfig = {
     email_postmaster_address: config.get('email_postmaster_address'),
     email_smtp_server_host: config.get('email_smtp_server_host'),
-    email_smtp_server_port: config.get('email_smtp_server_port'),
+    email_smtp_server_port: isNaN(parseInt(config.get('email_smtp_server_port'))) ? 3600 : parseInt(config.get('email_smtp_server_port')),
     email_smtp_use_SSL: config.get('email_smtp_use_SSL'),
     email_smtp_username: config.get('email_smtp_username'),
     email_smtp_password: config.get('email_smtp_password'),
-    };
+  };
 
   try {
     const data = new Data();

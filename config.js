@@ -86,15 +86,15 @@ function watchForConfigChange(cfgFilepath) {
 }
 
 nconf.defaults({
-  "httpPort": 5002,
+  "httpPort": "5002",
   "syncDestination_url": "",
   "syncDestination_bearerToken": "",
   "syncDestination_acceptSelfSignedCertificate": false,
-  "minWaitMinutesToNotifySameGroup": 2,
+  "minWaitMinutesToNotifySameGroup": "2",
   "sms_client_id": "",
   "sms_client_secret": "",
-  "sms_validity_hours": 26,
-  "sms_wait_for_status": 600,
+  "sms_validity_hours": "26",
+  "sms_wait_for_status": "600",
   "sms_sender_nr": "",
   "email_smtp_sender_email": "",
   "email_smtp_username": "",
