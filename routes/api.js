@@ -69,7 +69,7 @@ router.post('/send', passport.authenticate('bearer', {session: false}), async fu
     email_postmaster_address: config.get('email_postmaster_address'),
     email_smtp_server_host: config.get('email_smtp_server_host'),
     email_smtp_server_port: isNaN(parseInt(config.get('email_smtp_server_port'))) ? 3600 : parseInt(config.get('email_smtp_server_port')),
-    email_smtp_use_SSL: config.get('email_smtp_use_SSL'),
+    email_smtp_use_SSL: (isNaN(parseInt(config.get('email_smtp_use_SSL'))) ? 0 : parseInt(config.get('email_smtp_use_SSL'))) === 1,
     email_smtp_username: config.get('email_smtp_username'),
     email_smtp_password: config.get('email_smtp_password'),
   };
