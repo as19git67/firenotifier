@@ -67,6 +67,7 @@ router.post('/send', passport.authenticate('bearer', {session: false}), async fu
   };
   const emailConfig = {
     email_postmaster_address: config.get('email_postmaster_address'),
+    email_smtp_sender_email: config.get('email_smtp_sender_email'),
     email_smtp_server_host: config.get('email_smtp_server_host'),
     email_smtp_server_port: isNaN(parseInt(config.get('email_smtp_server_port'))) ? 3600 : parseInt(config.get('email_smtp_server_port')),
     email_smtp_use_SSL: (isNaN(parseInt(config.get('email_smtp_use_SSL'))) ? 0 : parseInt(config.get('email_smtp_use_SSL'))) === 1,
@@ -166,8 +167,8 @@ router.post('/send', passport.authenticate('bearer', {session: false}), async fu
       }
 
       if (Object.keys(recipientsByAddress.email).length > 0) {
-        let textEmail = _generateTextForEmail(fields);
-        promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email), smsConfig, emailConfig));
+        let textEmail = await _generateTextForEmail(fields);
+        promises.push(_sendEmail(groupId, textEmail, Object.keys(recipientsByAddress.email), emailConfig));
       }
 
       Promise.all(promises).then(values => {
