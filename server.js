@@ -146,5 +146,5 @@ function onListening() {
   config.listenForChange(function () {
     console.log("Configuration changed -> pushing config to backup server");
     app.pushConfigToBackupServer();
-  })
+  });
 }

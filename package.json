@@ -1,7 +1,7 @@
 {
   "name": "firenotifier",
-  "version": "1.0.0",
-  "description": "A service with a REST api to send a message to varous destinations",
+  "version": "2.0.0",
+  "description": "A service with a REST api to send a message to various destinations",
   "type": "module",
   "scripts": {
     "start": "node ./server.js",
