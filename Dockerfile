@@ -58,7 +58,6 @@ RUN apk update && apk add --no-cache openssl tzdata
 
 ARG ARG_TZ="Europe/Berlin"
 ENV TZ=${ARG_TZ}
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 CMD ["/bin/sh", "./start.sh"]
 
