@@ -2,6 +2,7 @@
 
 {
   echo "{"
+  echo "  \"timezone\": \"$TZ\","
   echo "  \"httpPort\": \"$PORT_HTTP\","
   echo "  \"httpsPort\": \"$PORT_HTTPS\","
   echo "  \"syncDestination_url\": \"$SYNCDESTINATION_URL\","
