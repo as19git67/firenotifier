@@ -54,7 +54,10 @@ ENV EMAIL_POSTMASTER_ADDRESS=${ARG_EMAIL_POSTMASTER_ADDRESS}
 
 
 RUN yarn install --production
-RUN apk update && apk add --no-cache openssl
+RUN apk update && apk add --no-cache openssl tzdata
+
+ENV TZ=Europe/Berlin
+
 
 CMD ["/bin/sh", "./start.sh"]
 
