@@ -56,7 +56,7 @@ ENV EMAIL_POSTMASTER_ADDRESS=${ARG_EMAIL_POSTMASTER_ADDRESS}
 RUN yarn install --production
 RUN apk update && apk add --no-cache openssl tzdata
 
-ARG ARG_TZ="Europe/Amsterdam"
+ARG ARG_TZ="Europe/Berlin"
 ENV TZ=${ARG_TZ}
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
