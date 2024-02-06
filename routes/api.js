@@ -381,9 +381,9 @@ async function _generateTextForSMS(data) {
     templateName = 'smsAlarmWithCompleteInfo';
   }
 
-  if (testAlarm) {
-    templateName = templateName + 'Test';
-  }
+  // if (testAlarm) {
+  //   templateName = templateName + 'Test';
+  // }
 
   let keywordEmoji = _makeKeywordEmoji(data);
   let address = _makeAddress(data);
