@@ -1,6 +1,6 @@
 {
   "name": "firenotifier",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "A service with a REST api to send a message to various destinations",
   "type": "module",
   "scripts": {
