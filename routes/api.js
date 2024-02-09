@@ -371,7 +371,8 @@ async function _generateTextForSMS(data) {
   const now = moment();
   const whom = await _getGroupNameById(data.groupId);
   const date_formatted = now.format('DD.MM. LT');
-  const testAlarm = _isFirstSaturdayOfMonthBetween11And12(now);
+  let testAlarm = _isFirstSaturdayOfMonthBetween11And12(now);
+  testAlarm = false;
 
   let templateName = 'smsAlarm0';
   if (data.keyword && !testAlarm) {
@@ -381,9 +382,9 @@ async function _generateTextForSMS(data) {
     templateName = 'smsAlarmWithCompleteInfo';
   }
 
-  // if (testAlarm) {
-  //   templateName = templateName + 'Test';
-  // }
+  if (testAlarm) {
+    templateName = templateName + 'Test';
+  }
 
   let keywordEmoji = _makeKeywordEmoji(data);
   let address = _makeAddress(data);
